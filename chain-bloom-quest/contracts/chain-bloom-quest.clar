@@ -98,6 +98,38 @@
     rarity-bonus: uint
   })
 
+;; Helper Functions
+(define-private (generate-art-dna (seed-type (string-ascii 20)) (x uint) (y uint))
+  ;; Generate a simple DNA string based on inputs
+  (concat 
+    (concat seed-type "-")
+    (concat 
+      (int-to-ascii (+ x y))
+      (int-to-ascii burn-block-height))))
+
+(define-private (calculate-evolution-gain (plant {garden-id: uint, owner: principal, x-coord: uint, y-coord: uint, plant-type: (string-ascii 20), growth-stage: uint, evolution-points: uint, art-dna: (string-ascii 128), created-at: uint, last-evolved: uint, rarity-score: uint, interaction-count: uint}) (garden {owner: principal, name: (string-ascii 64), size: uint, energy: uint, last-tended: uint, environment-type: (string-ascii 20), total-plants: uint, prosperity-score: uint}))
+  (let 
+    (
+      (base-gain u10)
+      (env-bonus (default-to {growth-multiplier: u100, energy-efficiency: u100, rarity-bonus: u100} 
+                             (map-get? environment-bonuses (get environment-type garden))))
+    )
+    (/ (* base-gain (get growth-multiplier env-bonus)) u100)))
+
+(define-private (int-to-ascii (value uint))
+  ;; Simple conversion - in production, you'd want a more robust implementation
+  (if (is-eq value u0) "0"
+  (if (is-eq value u1) "1"
+  (if (is-eq value u2) "2"
+  (if (is-eq value u3) "3"
+  (if (is-eq value u4) "4"
+  (if (is-eq value u5) "5"
+  (if (is-eq value u6) "6"
+  (if (is-eq value u7) "7"
+  (if (is-eq value u8) "8"
+  (if (is-eq value u9) "9"
+  "X")))))))))))
+
 ;; Owner Functions
 (define-public (set-base-seed-price (new-price uint))
   (begin
@@ -253,3 +285,60 @@
       (evolution-cost (* (get growth-stage plant) EVOLUTION_THRESHOLD))
     )
     (asserts! (not (var-get contract-paused)) ERR_NOT_AUTHORIZED)
+    (asserts! (is-eq (get owner plant) tx-sender) ERR_NOT_AUTHORIZED)
+    (asserts! (>= (get evolution-points plant) evolution-cost) ERR_PLANT_NOT_MATURE)
+    (asserts! (<= new-stage u10) ERR_INVALID_EVOLUTION_STAGE)
+    
+    ;; Record evolution history
+    (map-set evolution-history plant-id {
+      previous-stage: (get growth-stage plant),
+      evolution-timestamp: burn-block-height,
+      catalyst-used: none,
+      community-votes: u0
+    })
+    
+    ;; Update plant
+    (map-set plants plant-id 
+      (merge plant {
+        growth-stage: new-stage,
+        evolution-points: (- (get evolution-points plant) evolution-cost),
+        rarity-score: (+ (get rarity-score plant) (* new-stage u5)),
+        last-evolved: burn-block-height
+      }))
+    
+    ;; Award evolution tokens
+    (map-set player-resources tx-sender 
+      (merge current-resources {
+        evolution-tokens: (+ (get evolution-tokens current-resources) u1),
+        experience-points: (+ (get experience-points current-resources) (* new-stage u10))
+      }))
+    
+    (ok new-stage)))
+
+;; Read-only Functions
+(define-read-only (get-garden (garden-id uint))
+  (map-get? gardens garden-id))
+
+(define-read-only (get-plant (plant-id uint))
+  (map-get? plants plant-id))
+
+(define-read-only (get-player-resources (player principal))
+  (map-get? player-resources player))
+
+(define-read-only (get-plant-at-position (garden-id uint) (x uint) (y uint))
+  (map-get? garden-positions {garden-id: garden-id, x: x, y: y}))
+
+(define-read-only (get-evolution-history (plant-id uint))
+  (map-get? evolution-history plant-id))
+
+(define-read-only (get-environment-bonus (env-type (string-ascii 20)))
+  (map-get? environment-bonuses env-type))
+
+(define-read-only (is-contract-paused)
+  (var-get contract-paused))
+
+(define-read-only (get-base-seed-price)
+  (var-get base-seed-price))
+
+(define-read-only (get-evolution-multiplier)
+  (var-get evolution-multiplier))

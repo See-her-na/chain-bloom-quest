@@ -10,22 +10,6 @@ A living ecosystem where digital art NFTs evolve through community gameplay and 
 - **Symbiotic Art-Gameplay**: Artistic creation integrated with game mechanics
 - **Living Digital Assets**: NFTs that change over time based on environmental factors
 
-## Quick Start
-
-```bash
-# Clone the repository
-git clone https://github.com/username/chain-bloom-quest.git
-cd chain-bloom-quest
-
-# Install dependencies
-npm install
-
-# Deploy contract
-npm run deploy
-
-# Start the application
-npm run start
-```
 
 ## Usage
 
